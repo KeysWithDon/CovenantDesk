@@ -30,7 +30,7 @@
 
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--gray-100); color: var(--gray-950); }
-body { margin: 0; background: var(--gray-100); color: var(--gray-950); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; }
+body { margin: 0; background: var(--gray-100); color: var(--gray-950); font-family: var(--font-sans); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 button, label, select, input[type="checkbox"], input[type="radio"] { -webkit-tap-highlight-color: transparent; }
