@@ -1,4 +1,4 @@
-import type { ContractData, ScheduleEntry } from "./contract-types";
+import type { ContractData, CustomClause, ScheduleEntry } from "./contract-types";
 import { REQUIRED_CLAUSES } from "./legal-clauses";
 
 export function money(value: number, currency = "USD") {
@@ -204,6 +204,22 @@ export function customClauseConflicts(text: string) {
     { test: /security deposit.{0,30}(?:final rent|last payment)/, message: "This may conflict with the required security-deposit treatment." },
   ];
   return patterns.filter((item) => item.test.test(normalized)).map((item) => item.message);
+}
+
+export function isPrintableCustomClause(clause: CustomClause, page?: CustomClause["page"]) {
+  return Boolean(
+    clause.included &&
+    (!page || clause.page === page) &&
+    clause.title.trim() &&
+    clause.text.trim(),
+  );
+}
+
+export function makeCustomClausesOptional(contract: ContractData): ContractData {
+  return {
+    ...contract,
+    customClauses: contract.customClauses.map((clause) => ({ ...clause, required: false as const })),
+  };
 }
 
 export function shortHash(hash: string) {

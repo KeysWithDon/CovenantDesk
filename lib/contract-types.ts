@@ -219,7 +219,7 @@ export interface CustomClause {
   number: string;
   title: string;
   text: string;
-  required: boolean;
+  required: false;
   page: "one" | "legal";
   initialsRequired: boolean;
   included: boolean;
@@ -336,4 +336,3 @@ export interface ContractData {
     requiredClauseRevision: string;
   };
 }
-

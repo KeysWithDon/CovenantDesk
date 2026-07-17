@@ -10,7 +10,7 @@ import { SignatureDialog } from "./SignatureDialog";
 import { createBlankContract, createNewContract, sampleContract } from "@/lib/contract-defaults";
 import type { AuditRecord, ContractData, PartySide, SignatureRecord } from "@/lib/contract-types";
 import { contractSchema } from "@/lib/contract-schema";
-import { contractCompletion, hashContract, shortHash, validateContractData } from "@/lib/contract-utils";
+import { contractCompletion, hashContract, makeCustomClausesOptional, shortHash, validateContractData } from "@/lib/contract-utils";
 import { downloadContractData, downloadDocx, downloadPdf } from "@/lib/document-export";
 import { LEGAL_ADVICE_NOTICE } from "@/lib/legal-clauses";
 
@@ -69,10 +69,10 @@ export function ContractStudio() {
 
   useEffect(() => {
     try {
-      const library = JSON.parse(localStorage.getItem(LIBRARY_KEY) || "[]") as SavedContract[];
+      const library = (JSON.parse(localStorage.getItem(LIBRARY_KEY) || "[]") as SavedContract[]).map((item) => ({ ...item, contract: makeCustomClausesOptional(item.contract) }));
       setSavedContracts(library);
       const autosave = localStorage.getItem(AUTOSAVE_KEY);
-      if (autosave) form.reset(JSON.parse(autosave) as ContractData);
+      if (autosave) form.reset(makeCustomClausesOptional(JSON.parse(autosave) as ContractData));
     } catch {
       localStorage.removeItem(AUTOSAVE_KEY);
     }
@@ -98,7 +98,7 @@ export function ContractStudio() {
   const saveDraft = async (label = "Draft saved") => {
     setBusyAction("save");
     const current = form.getValues();
-    const updated: ContractData = JSON.parse(JSON.stringify(current));
+    const updated = makeCustomClausesOptional(JSON.parse(JSON.stringify(current)) as ContractData);
     updated.metadata.lastModified = new Date().toISOString().slice(0, 10);
     const hash = await hashContract(updated);
     const versionNumber = (updated.versions.at(-1)?.number || 0) + 1;
@@ -133,8 +133,9 @@ export function ContractStudio() {
   const exportPdf = async () => {
     if (!requireFinalReady()) return;
     setBusyAction("pdf");
-    const hash = await hashContract(form.getValues());
-    await downloadPdf(form.getValues(), hash);
+    const printableContract = makeCustomClausesOptional(form.getValues());
+    const hash = await hashContract(printableContract);
+    await downloadPdf(printableContract, hash);
     setToast("Professional PDF generated");
     setBusyAction("");
   };
@@ -142,8 +143,9 @@ export function ContractStudio() {
   const exportDocx = async () => {
     if (!requireFinalReady()) return;
     setBusyAction("docx");
-    const hash = await hashContract(form.getValues());
-    await downloadDocx(form.getValues(), hash);
+    const printableContract = makeCustomClausesOptional(form.getValues());
+    const hash = await hashContract(printableContract);
+    await downloadDocx(printableContract, hash);
     setToast("Editable DOCX generated");
     setBusyAction("");
   };
@@ -155,8 +157,9 @@ export function ContractStudio() {
   };
 
   const loadContract = (contract: ContractData) => {
-    form.reset(contract);
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(contract));
+    const normalized = makeCustomClausesOptional(contract);
+    form.reset(normalized);
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(normalized));
     setSavedOpen(false);
     setToast(`Loaded ${contract.metadata.contractNumber}`);
   };

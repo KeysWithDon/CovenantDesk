@@ -182,6 +182,11 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .major-rights-box .toggle-row { margin-top: 7px; background: white; }
 .section-note { display: flex; align-items: flex-start; gap: 7px; color: var(--gray-600); background: var(--gray-100); padding: 9px 10px; border-radius: 5px; font-size: 9px; }
 .custom-clause-card { border: 1px solid var(--gray-200); border-radius: 7px; padding: 13px; background: var(--gray-50); margin-bottom: 10px; }
+.optional-custom-notice { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 12px; padding: 11px 12px; border: 1px solid #b8cad5; border-radius: 6px; background: #f2f7f9; color: var(--navy-700); }
+.optional-custom-notice > div { display: grid; }
+.optional-custom-notice strong { font-size: 10px; }
+.optional-custom-notice span { margin-top: 2px; color: var(--gray-600); font-size: 9px; }
+.custom-clause-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .custom-clause-card > header { display: flex; align-items: center; justify-content: space-between; color: var(--navy-900); font-size: 11px; font-weight: 750; margin-bottom: 10px; }
 .custom-clause-card .field + .inline-toggle-row { margin-top: 10px; }
 .conflict-warning { margin: 10px 0 0; }

@@ -1,5 +1,5 @@
 import type { ContractData, PartySide } from "@/lib/contract-types";
-import { agreementTitle, calculatePayment, formatDate, formatTime, money, occurrenceCount, shortHash } from "@/lib/contract-utils";
+import { agreementTitle, calculatePayment, formatDate, formatTime, isPrintableCustomClause, money, occurrenceCount, shortHash } from "@/lib/contract-utils";
 import { LEGAL_ADVICE_NOTICE, PAGE_ONE_INCORPORATION_NOTICE, REQUIRED_CLAUSES, SIGNATURE_ACKNOWLEDGMENT } from "@/lib/legal-clauses";
 
 export type PreviewMode = "page-one" | "page-two" | "full" | "print" | "signing";
@@ -136,7 +136,7 @@ function PageOne({ contract, hash, total }: { contract: ContractData; hash: stri
 }
 
 function LegalPage({ contract, hash, total, page, clauses, continuation }: { contract: ContractData; hash: string; total: number; page: number; clauses: typeof REQUIRED_CLAUSES; continuation?: boolean }) {
-  const customClauses = page === total ? contract.customClauses.filter((item) => item.included && item.page === "legal") : [];
+  const customClauses = page === total ? contract.customClauses.filter((item) => isPrintableCustomClause(item, "legal")) : [];
   return (
     <article className="document-page legal-page" aria-label={`Legal terms page ${page}`}>
       <PageHeader contract={contract} legal />

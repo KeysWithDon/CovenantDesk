@@ -141,17 +141,18 @@ function CustomClauses({ form }: { form: Form }) {
   const clauses = form.watch("customClauses");
   return (
     <>
+      <div className="optional-custom-notice"><Info size={16} /><div><strong>Every custom clause is optional.</strong><span>New clauses are excluded from the printed agreement, PDF, and DOCX until “Include in final agreement” is turned on. Empty clauses are always omitted.</span></div></div>
       {fields.map((field, index) => {
         const conflicts = customClauseConflicts(clauses[index]?.text || "");
         return <article className="custom-clause-card" key={field.id}>
           <header><span>Custom clause {index + 1}</span><button type="button" className="icon-button danger" onClick={() => remove(index)} aria-label="Remove custom clause"><Trash2 size={16} /></button></header>
           <div className="field-grid three-column"><Field form={form} name={`customClauses.${index}.number`} label="Clause number" /><Field form={form} name={`customClauses.${index}.title`} label="Clause title" /><SelectField form={form} name={`customClauses.${index}.page`} label="Placement" options={["one", "legal"]} /></div>
           <Field form={form} name={`customClauses.${index}.text`} label="Clause text" textarea />
-          <div className="inline-toggle-row"><Toggle form={form} name={`customClauses.${index}.included`} label="Include in agreement" /><Toggle form={form} name={`customClauses.${index}.initialsRequired`} label="Requires initials" /><Toggle form={form} name={`customClauses.${index}.required`} label="Required for this contract" /></div>
+          <div className="inline-toggle-row custom-clause-options"><Toggle form={form} name={`customClauses.${index}.included`} label="Include in final agreement" help="Leave off to remove this clause from print, PDF, and DOCX." /><Toggle form={form} name={`customClauses.${index}.initialsRequired`} label="Requires initials when included" /></div>
           {conflicts.map((conflict) => <div className="conflict-warning" key={conflict}><AlertTriangle size={15} /><span><strong>Attorney review recommended.</strong> {conflict}</span></div>)}
         </article>;
       })}
-      <button type="button" className="add-button" onClick={() => append({ id: crypto.randomUUID(), number: String(REQUIRED_CLAUSES.length + fields.length + 1), title: "", text: "", required: false, page: "legal", initialsRequired: false, included: true })}><Plus size={15} /> Add custom clause</button>
+      <button type="button" className="add-button" onClick={() => append({ id: crypto.randomUUID(), number: String(REQUIRED_CLAUSES.length + fields.length + 1), title: "", text: "", required: false, page: "legal", initialsRequired: false, included: false })}><Plus size={15} /> Add optional custom clause</button>
     </>
   );
 }
@@ -237,7 +238,7 @@ export function ContractForm({ form }: { form: Form }) {
         <p className="section-note"><Info size={15} /> The mandatory three-month early-termination provision remains separate and cannot be changed here.</p>
       </Accordion>
 
-      <Accordion number={13} title="Additional terms" subtitle="Custom clauses with conflict review" complete={completion[13]} open={openSections.includes(13)} onToggle={() => toggle(13)}><CustomClauses form={form} /></Accordion>
+      <Accordion number={13} title="Optional custom terms" subtitle="Excluded from printed documents unless explicitly included" complete={completion[13]} open={openSections.includes(13)} onToggle={() => toggle(13)}><CustomClauses form={form} /></Accordion>
 
       <Accordion number={14} title="Governing law and dispute resolution" subtitle="Jurisdiction, venue, and affirmative rights waivers" complete={completion[14]} open={openSections.includes(14)} onToggle={() => toggle(14)}>
         <div className="field-grid two-column"><Field form={form} name="governingLaw.state" label="Governing state" /><Field form={form} name="governingLaw.county" label="Governing county" /><Field form={form} name="governingLaw.venue" label="Court venue" /><Field form={form} name="governingLaw.noticeBeforeActionDays" label="Notice before legal action (days)" type="number" /></div>
@@ -266,4 +267,3 @@ export function ContractForm({ form }: { form: Form }) {
     </div>
   );
 }
-

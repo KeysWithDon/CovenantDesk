@@ -1,5 +1,5 @@
 import type { ContractData, SignatureRecord } from "./contract-types";
-import { agreementTitle, calculatePayment, formatDate, formatTime, money, shortHash } from "./contract-utils";
+import { agreementTitle, calculatePayment, formatDate, formatTime, isPrintableCustomClause, money, shortHash } from "./contract-utils";
 import { LEGAL_ADVICE_NOTICE, PAGE_ONE_INCORPORATION_NOTICE, REQUIRED_CLAUSES, SIGNATURE_ACKNOWLEDGMENT } from "./legal-clauses";
 
 const safeFileName = (value: string) => value.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-|-$/g, "");
@@ -184,7 +184,7 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
     }
   }
 
-  for (const custom of contract.customClauses.filter((item) => item.included && item.page === "legal")) {
+  for (const custom of contract.customClauses.filter((item) => isPrintableCustomClause(item, "legal"))) {
     ensureLegalSpace(45);
     legalY = text(`${custom.number || "Additional"}. ${custom.title.toUpperCase()}`, left, legalY, { size: 9.5, style: "bold", color: navy }) + 2;
     legalY = text(custom.text, left, legalY, { width: contentWidth, size: 8.7 }) + 5;
@@ -266,7 +266,7 @@ export async function downloadDocx(contract: ContractData, documentHash: string)
     new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { after: 80 }, children: [new TextRun({ text: "LEGAL TERMS AND CONDITIONS — INCORPORATED INTO PAGE ONE", bold: true, size: 24, color: "0F2A43", font: "Georgia" })] }),
     small("These Legal Terms and Conditions are incorporated into and form a material part of the Commercial Property Rental Agreement appearing on page one.", true),
     ...REQUIRED_CLAUSES.flatMap((item) => [heading(`${item.number}. ${item.title.toUpperCase()}`), small(item.text)]),
-    ...contract.customClauses.filter((item) => item.included && item.page === "legal").flatMap((item) => [heading(`${item.number || "Additional"}. ${item.title.toUpperCase()}`), small(item.text)]),
+    ...contract.customClauses.filter((item) => isPrintableCustomClause(item, "legal")).flatMap((item) => [heading(`${item.number || "Additional"}. ${item.title.toUpperCase()}`), small(item.text)]),
     ...(contract.metadata.includeDisclaimerInContract ? [heading("TEMPLATE NOTICE"), small(LEGAL_ADVICE_NOTICE)] : []),
     ...(contract.admin.finalPageAcknowledgment ? [heading("FINAL-PAGE ACKNOWLEDGMENT"), body("Property Owner/Lessor Initials: ____________________    Renter Initials: ____________________")] : []),
   ];
@@ -297,4 +297,3 @@ export function downloadContractData(contract: ContractData, documentHash: strin
   anchor.click();
   URL.revokeObjectURL(url);
 }
-
