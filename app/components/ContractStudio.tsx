@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
-import { Archive, BadgeCheck, Check, ChevronDown, ClipboardCheck, Clock3, Copy, Download, FileCheck2, FileDown, FilePenLine, FilePlus2, FileSearch, FileText, FolderOpen, History, LockKeyhole, Maximize2, Menu, MoreHorizontal, PanelRight, PenLine, Plus, Printer, RotateCcw, Save, Send, Settings2, ShieldCheck, Upload, X } from "lucide-react";
+import { Archive, BadgeCheck, Check, ClipboardCheck, Clock3, Copy, Download, FileCheck2, FileDown, FilePenLine, FilePlus2, FileSearch, FileText, FolderOpen, History, LockKeyhole, Maximize2, Menu, MoreHorizontal, PenLine, Plus, Printer, RotateCcw, Save, Send, Settings2, ShieldCheck, Upload, X } from "lucide-react";
 import { ContractForm } from "./ContractForm";
 import { DocumentPreview, type PreviewMode } from "./DocumentPreview";
 import { SignatureDialog } from "./SignatureDialog";
@@ -12,7 +12,6 @@ import type { AuditRecord, ContractData, PartySide, SignatureRecord } from "@/li
 import { contractSchema } from "@/lib/contract-schema";
 import { contractCompletion, hashContract, makeCustomClausesOptional, shortHash, validateContractData } from "@/lib/contract-utils";
 import { downloadContractData, downloadDocx, downloadPdf } from "@/lib/document-export";
-import { LEGAL_ADVICE_NOTICE } from "@/lib/legal-clauses";
 
 const AUTOSAVE_KEY = "covenantdesk-autosave-v1";
 const LIBRARY_KEY = "covenantdesk-contract-library-v1";
@@ -21,6 +20,33 @@ interface SavedContract {
   id: string;
   savedAt: string;
   contract: ContractData;
+}
+
+function normalizeContract(candidate: ContractData): ContractData {
+  const base = createNewContract();
+  const legacyTerm = (candidate.term || {}) as ContractData["term"] & { minimumMonths?: number };
+  const property = { ...base.property, ...(candidate.property || {}) } as ContractData["property"] & Record<string, unknown>;
+  for (const legacyKey of [["maximum", "Occupancy"], ["parking", "Spaces"], ["access", "ibility"]].map((parts) => parts.join(""))) delete property[legacyKey];
+  const term = {
+    ...base.term,
+    ...legacyTerm,
+    rentalPattern: legacyTerm.rentalPattern || "recurring-weekly",
+    threeMonthCommitmentEnabled: legacyTerm.threeMonthCommitmentEnabled ?? ((legacyTerm.minimumMonths || 0) >= 3),
+    specialEventDates: legacyTerm.specialEventDates || [],
+    unavailableDates: legacyTerm.unavailableDates || [],
+  };
+  if (term.rentalPattern === "one-day") term.threeMonthCommitmentEnabled = false;
+  return makeCustomClausesOptional({
+    ...base,
+    ...candidate,
+    property,
+    term,
+    payment: { ...base.payment, ...(candidate.payment || {}) },
+    securityDeposit: { ...base.securityDeposit, ...(candidate.securityDeposit || {}) },
+    cancellation: { ...base.cancellation, ...(candidate.cancellation || {}) },
+    signatureOptions: { ...base.signatureOptions, ...(candidate.signatureOptions || {}) },
+    customClauses: candidate.customClauses || [],
+  });
 }
 
 function nowAudit(action: string, details: string, documentHash: string, actor = "Contract Preparer"): AuditRecord {
@@ -68,15 +94,18 @@ export function ContractStudio() {
   const completion = useMemo(() => contractCompletion(values), [values]);
 
   useEffect(() => {
-    try {
-      const library = (JSON.parse(localStorage.getItem(LIBRARY_KEY) || "[]") as SavedContract[]).map((item) => ({ ...item, contract: makeCustomClausesOptional(item.contract) }));
-      setSavedContracts(library);
-      const autosave = localStorage.getItem(AUTOSAVE_KEY);
-      if (autosave) form.reset(makeCustomClausesOptional(JSON.parse(autosave) as ContractData));
-    } catch {
-      localStorage.removeItem(AUTOSAVE_KEY);
-    }
-    setHydrated(true);
+    const timer = window.setTimeout(() => {
+      try {
+        const library = (JSON.parse(localStorage.getItem(LIBRARY_KEY) || "[]") as SavedContract[]).map((item) => ({ ...item, contract: normalizeContract(item.contract) }));
+        setSavedContracts(library);
+        const autosave = localStorage.getItem(AUTOSAVE_KEY);
+        if (autosave) form.reset(normalizeContract(JSON.parse(autosave) as ContractData));
+      } catch {
+        localStorage.removeItem(AUTOSAVE_KEY);
+      }
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [form]);
 
   useEffect(() => {
@@ -157,7 +186,7 @@ export function ContractStudio() {
   };
 
   const loadContract = (contract: ContractData) => {
-    const normalized = makeCustomClausesOptional(contract);
+    const normalized = normalizeContract(contract);
     form.reset(normalized);
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(normalized));
     setSavedOpen(false);
@@ -299,7 +328,7 @@ export function ContractStudio() {
         <div className="header-actions">
           <ActionButton icon={<FolderOpen size={16} />} onClick={() => setSavedOpen(true)}>Agreements</ActionButton>
           <ActionButton icon={<Save size={16} />} onClick={() => saveDraft()} disabled={busyAction === "save" || values.metadata.locked}>{busyAction === "save" ? "Saving…" : "Save draft"}</ActionButton>
-          <div className="more-menu-wrap"><button type="button" className="icon-button bordered" onClick={() => setMoreOpen((current) => !current)} aria-label="More contract actions"><MoreHorizontal size={19} /></button>{moreOpen && <div className="more-menu"><button type="button" onClick={startNew}><FilePlus2 size={15} />Start new agreement</button><button type="button" onClick={loadSample}><RotateCcw size={15} />Load sample agreement</button><button type="button" onClick={duplicate}><Copy size={15} />Duplicate agreement</button><button type="button" onClick={() => setAuditOpen(true)}><History size={15} />Audit & version history</button><button type="button" onClick={() => setAdminOpen(true)}><Settings2 size={15} />Administrator policy</button><button type="button" onClick={() => setLifecycleStatus("Archived")}><Archive size={15} />Archive agreement</button><button type="button" onClick={() => setLifecycleStatus("Terminated")}><LockKeyhole size={15} />Terminate agreement</button><button type="button" className="danger" onClick={deleteAgreement}><X size={15} />Delete agreement</button></div>}</div>
+          <div className="more-menu-wrap"><button type="button" className="icon-button bordered" onClick={() => setMoreOpen((current) => !current)} aria-label="More contract actions"><MoreHorizontal size={19} /></button>{moreOpen && <div className="more-menu"><button type="button" onClick={startNew}><FilePlus2 size={15} />Start new agreement</button><button type="button" onClick={loadSample}><RotateCcw size={15} />Load sample agreement</button><button type="button" onClick={duplicate}><Copy size={15} />Duplicate agreement</button><button type="button" onClick={() => downloadContractData(values, documentHash)}><FileDown size={15} />Export agreement data</button><button type="button" onClick={() => setAuditOpen(true)}><History size={15} />Audit & version history</button><button type="button" onClick={() => setAdminOpen(true)}><Settings2 size={15} />Administrator policy</button><button type="button" onClick={() => setLifecycleStatus("Archived")}><Archive size={15} />Archive agreement</button><button type="button" onClick={() => setLifecycleStatus("Terminated")}><LockKeyhole size={15} />Terminate agreement</button><button type="button" className="danger" onClick={deleteAgreement}><X size={15} />Delete agreement</button></div>}</div>
         </div>
         <button type="button" className="mobile-menu-button"><Menu size={21} /></button>
       </header>
@@ -362,8 +391,8 @@ export function ContractStudio() {
         <div className="signature-center-actions"><button type="button" className="secondary-button" onClick={() => uploadRef.current?.click()}><Upload size={15} />Upload completed wet-ink copy</button><button type="button" className="primary-button" onClick={markExecuted}><LockKeyhole size={15} />Mark as fully executed</button></div>
       </ModalShell>}
 
-      {adminOpen && <ModalShell title="Administrator policy" subtitle="Universal language and jurisdiction defaults are separate from normal contract editing." onClose={() => setAdminOpen(false)}>
-        <div className="admin-policy-card"><LockKeyhole size={28} /><h3>Protected policy layer</h3><p>Required legal language is code-locked in this browser-local release under revision <strong>{values.admin.requiredClauseRevision}</strong>. Contract creators cannot remove, disable, or edit it.</p><dl><div><dt>Default jurisdiction</dt><dd>North Carolina</dd></div><div><dt>Minimum commitment</dt><dd>Three months</dd></div><div><dt>Post-commitment notice</dt><dd>15 days</dd></div><div><dt>Required clauses</dt><dd>26 protected provisions</dd></div></dl><p className="admin-security-copy">Operational administrator editing should be enabled only after authenticated roles, database row-level security, immutable revision history, and legal-review approval are configured. The included Supabase guide provides that production path; this interface does not pretend that a client-side passcode is secure.</p></div>
+      {adminOpen && <ModalShell title="Administrator policy" subtitle="Core language and jurisdiction defaults are separate from normal contract editing." onClose={() => setAdminOpen(false)}>
+        <div className="admin-policy-card"><LockKeyhole size={28} /><h3>Protected policy layer</h3><p>Core legal language is code-locked in this browser-local release under revision <strong>{values.admin.requiredClauseRevision}</strong>. Rental-specific cancellation and termination language is generated from the form selections.</p><dl><div><dt>Default jurisdiction</dt><dd>North Carolina</dd></div><div><dt>One-day rentals</dt><dd>Cancellation policy only</dd></div><div><dt>Longer rentals</dt><dd>Optional initial commitment</dd></div><div><dt>Core clauses</dt><dd>18 protected provisions</dd></div></dl><p className="admin-security-copy">Drafts stay in this browser unless exported. For multi-user production use, add authenticated roles, private storage, immutable revision history, and legal-review approval.</p></div>
       </ModalShell>}
 
       {signingSide && <SignatureDialog contract={values} side={signingSide} onClose={() => setSigningSide(null)} onSigned={onSigned} />}

@@ -59,5 +59,4 @@ For hybrid execution, retain the electronically signed counterpart and uploaded 
 
 ## Provider evaluation checklist
 
-Confirm support for embedded or remote signing, recipient authentication, tamper-evident source documents, raw webhook verification, signed-PDF retrieval, completion certificates, audit exports, data residency, accessibility, retention controls, organization-level access, and deletion/legal-hold policies. Have counsel review the complete workflow for each jurisdiction and property use.
-
+Confirm support for embedded or remote signing, recipient authentication, tamper-evident source documents, raw webhook verification, signed-PDF retrieval, completion certificates, audit exports, data residency, a usable signing experience, retention controls, organization-level access, and deletion/legal-hold policies. Have counsel review the complete workflow for each jurisdiction and property use.

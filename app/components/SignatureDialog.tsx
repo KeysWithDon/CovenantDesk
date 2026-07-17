@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- signer-provided signature previews use local data URLs */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -166,4 +167,3 @@ export function SignatureDialog({ contract, side, onClose, onSigned }: { contrac
     </div>
   );
 }
-

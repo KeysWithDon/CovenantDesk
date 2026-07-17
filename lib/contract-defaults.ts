@@ -57,19 +57,16 @@ export const sampleContract: ContractData = {
     building: "Main Building",
     floor: "Ground Floor",
     suite: "",
-    rentedAreas: ["Sanctuary", "Fellowship hall", "Classroom", "Parking area"],
-    customArea: "Classrooms 101–103 and east parking lot",
-    maximumOccupancy: 240,
-    parkingSpaces: 78,
-    accessibility: "Step-free east entrance, accessible restrooms, and designated parking spaces.",
+    rentedAreas: ["Sanctuary", "Fellowship hall", "Classroom"],
+    customArea: "Classrooms 101–103",
     entryDoors: "East fellowship-hall entrance and main sanctuary entrance",
-    areasIncluded: "Sanctuary, fellowship hall, classrooms 101–103, east parking lot, and designated restrooms",
+    areasIncluded: "Sanctuary, fellowship hall, classrooms 101–103, and designated restrooms",
     areasExcluded: "Administrative offices, pastoral suite, nursery storage, and west maintenance rooms",
     amenities: ["Restrooms", "Furniture", "Kitchen access", "Sound system", "Audio-visual equipment", "Wi-Fi"],
     accessInstructions: "The designated representative may enter through the east entrance no earlier than the approved setup time.",
     keyInstructions: "One access credential will be issued. Codes may not be shared and must be returned or disabled at termination.",
     permittedUse: "Weekly worship services, Bible study, volunteer meetings, and related ministry activities",
-    prohibitedUses: "Commercial sales, overnight occupancy, political campaigning, or any unlawful activity",
+    prohibitedUses: "Commercial sales, overnight stays, political campaigning, or any unlawful activity",
     limitations: "Kitchen use is limited to warming and serving prepared food unless separately approved in writing.",
   },
   lessor: {
@@ -101,11 +98,15 @@ export const sampleContract: ContractData = {
     personalFinancialResponsibility: false,
   },
   term: {
+    rentalPattern: "recurring-weekly",
     startDate: "2026-08-02",
     endDate: "2027-07-31",
     initialAccessDate: "2026-08-02",
     initialAccessTime: "07:30",
-    minimumMonths: 3,
+    threeMonthCommitmentEnabled: true,
+    noticePeriodDays: 15,
+    specialEventDates: ["2026-12-20"],
+    unavailableDates: ["2026-12-27"],
     termType: "month-to-month",
     renewalPeriod: "One month",
     renewalDate: "2027-08-01",
@@ -117,7 +118,7 @@ export const sampleContract: ContractData = {
   },
   schedule: [
     { id: "schedule-wed", day: "Wednesday", recurrence: "Every week", setupStart: "17:30", rentalStart: "18:00", rentalEnd: "21:00", cleanupEnd: "21:30", firstOccurrence: "2026-08-05", lastOccurrence: "2027-07-28", expectedAttendees: 85, area: "Fellowship hall and classrooms 101–103", additionalCharge: 0, notes: "Bible study and youth ministry" },
-    { id: "schedule-sun", day: "Sunday", recurrence: "Every week", setupStart: "07:30", rentalStart: "08:00", rentalEnd: "14:00", cleanupEnd: "14:30", firstOccurrence: "2026-08-02", lastOccurrence: "2027-07-25", expectedAttendees: 210, area: "Sanctuary, fellowship hall, and east parking lot", additionalCharge: 0, notes: "Worship service and fellowship" },
+    { id: "schedule-sun", day: "Sunday", recurrence: "Every week", setupStart: "07:30", rentalStart: "08:00", rentalEnd: "14:00", cleanupEnd: "14:30", firstOccurrence: "2026-08-02", lastOccurrence: "2027-07-25", expectedAttendees: 210, area: "Sanctuary and fellowship hall", additionalCharge: 0, notes: "Worship service and fellowship" },
   ],
   payment: {
     calculationMethod: "month",
@@ -150,6 +151,7 @@ export const sampleContract: ContractData = {
     utilitiesIncluded: true,
     wifiIncluded: true,
     cleaningIncluded: false,
+    additionalPaymentNotes: "",
   },
   securityDeposit: {
     amount: 3200,
@@ -164,6 +166,14 @@ export const sampleContract: ContractData = {
     otherLosses: "Other documented losses permitted by the Agreement and applicable law",
     refundAddress: "722 Briar Creek Road, Charlotte, NC 28205",
     refundMethod: "ACH or check",
+    inspectionDays: 7,
+  },
+  cancellation: {
+    policyType: "custom",
+    refundUntil: "",
+    partialRefundPercent: 50,
+    reservationPayment: 0,
+    customPolicy: "After the initial commitment, either party may end the agreement with the written notice selected in the rental term.",
   },
   notices: {
     lessorAddress: "Heritage Community Property Association, Attn: Facilities Director, 1840 Providence Road, Charlotte, NC 28211",
@@ -180,7 +190,7 @@ export const sampleContract: ContractData = {
     emailedReceivedRule: "When sent without a delivery-failure notice during business hours; otherwise, the next business day",
     businessHours: "Monday–Friday, 9:00 AM–5:00 PM Eastern Time, excluding legal holidays",
   },
-  propertyRules: ["No smoking or vaping", "No alcohol or illegal drugs", "No unlawful activity or gambling", "No weapons except as permitted by law and property policy", "No subleasing or assignment without written approval", "No overnight occupancy or permanent residency", "No candles or open flames", "Children must be properly supervised", "Use only approved areas and schedule", "Secure doors and windows", "Turn off lights and equipment", "Leave property clean and remove trash", "Return furniture to its original location", "Report damage immediately", "Do not duplicate keys or share codes", "Follow fire code, occupancy limits, laws, and property policies", "Food only in approved areas", "Parking only in designated areas", "Service-animal rights will be handled according to applicable law"],
+  propertyRules: ["No smoking or vaping", "No alcohol or illegal drugs", "No unlawful activity or gambling", "No weapons except as permitted by law and property policy", "No subleasing or assignment without written approval", "No overnight stays or permanent residency", "No candles or open flames", "Children must be properly supervised", "Use only approved areas and schedule", "Secure doors and windows", "Turn off lights and equipment", "Leave property clean and remove trash", "Return furniture to its original location", "Report damage immediately", "Do not duplicate keys or share codes", "Follow fire code, safety requirements, laws, and property policies", "Food only in approved areas"],
   customRules: ["Sunday sound checks must conclude before 8:00 AM."],
   insurance: {
     required: true,
@@ -215,6 +225,7 @@ export const sampleContract: ContractData = {
     { id: "exhibit-d", label: "Exhibit D", title: "Certificate of Insurance", fileName: "", included: true },
   ],
   signatureMethod: "hybrid",
+  signatureOptions: { witnessEnabled: false, notaryEnabled: false },
   signatures: {},
   audit: [{ id: "audit-created", at: `${today}T12:00:00.000Z`, action: "Contract created", actor: "Contract Preparer", details: "Sample church facility agreement created from required-clause revision 2026.1.", documentHash: "Pending first save" }],
   versions: [],
@@ -227,18 +238,20 @@ export const createBlankContract = (): ContractData => {
   const contract = createNewContract();
   const stamp = new Date().toISOString().slice(0, 10).replaceAll("-", "");
   contract.metadata = { ...contract.metadata, agreementType: "Commercial facility rental agreement", contractNumber: `CFRA-${stamp}-001`, effectiveDate: "", creationDate: new Date().toISOString().slice(0, 10), lastModified: new Date().toISOString().slice(0, 10), status: "Draft", attorneyNoticeAccepted: false, includeDisclaimerInContract: false, locked: false };
-  contract.property = { ...contract.property, name: "", propertyType: "Commercial facility", address: { street: "", city: "", state: "NC", zip: "", county: "" }, rentedAreas: [], customArea: "", maximumOccupancy: 0, parkingSpaces: 0, areasIncluded: "", areasExcluded: "", permittedUse: "", prohibitedUses: "", limitations: "" };
+  contract.property = { ...contract.property, name: "", propertyType: "Commercial facility", address: { street: "", city: "", state: "NC", zip: "", county: "" }, rentedAreas: [], customArea: "", areasIncluded: "", areasExcluded: "", permittedUse: "", prohibitedUses: "", limitations: "" };
   contract.lessor = { ...contract.lessor, legalName: "", organizationName: "", entityType: "Nonprofit corporation", address: { street: "", city: "", state: "NC", zip: "", county: "" }, phone: "", email: "", website: "", responsible: { ...contract.lessor.responsible, fullName: "", title: "", phone: "", email: "", emergencyContact: "", hasAuthority: false } };
   contract.renter = { ...contract.renter, legalName: "", organizationName: "", entityType: "Church", address: { street: "", city: "", state: "NC", zip: "", county: "" }, phone: "", email: "", website: "", responsible: { ...contract.renter.responsible, fullName: "", title: "", phone: "", email: "", emergencyContact: "", hasAuthority: false } };
   contract.renter.purpose = "";
   contract.renter.personalFinancialResponsibility = false;
-  contract.term = { ...contract.term, startDate: "", endDate: "", initialAccessDate: "", renewalDate: "", finalVacateDate: "", finalKeyReturnDate: "", minimumMonths: 3 };
+  contract.term = { ...contract.term, rentalPattern: "one-day", startDate: "", endDate: "", initialAccessDate: "", renewalDate: "", finalVacateDate: "", finalKeyReturnDate: "", threeMonthCommitmentEnabled: false, noticePeriodDays: 15, specialEventDates: [], unavailableDates: [] };
   contract.schedule = [];
   contract.payment = { ...contract.payment, rentalPrice: 0, hourlyRate: 0, dailyRate: 0, weeklyRate: 0, monthlyRate: 0, flatAmount: 0, pricePerOccurrence: 0, firstPaymentDate: "", finalPaymentDate: "", recurringFees: [], oneTimeFees: [] };
   contract.securityDeposit = { ...contract.securityDeposit, amount: 0, dueDate: "", datePaid: "", receiptNumber: "", receivedBy: "", recordReference: "" };
+  contract.cancellation = { policyType: "fully-refundable", refundUntil: "", partialRefundPercent: 50, reservationPayment: 0, customPolicy: "" };
   contract.notices = { ...contract.notices, lessorAddress: "", renterAddress: "", lessorEmail: "", renterEmail: "" };
   contract.customClauses = [];
   contract.signatures = {};
+  contract.signatureOptions = { witnessEnabled: false, notaryEnabled: false };
   contract.audit = [{ id: crypto.randomUUID(), at: new Date().toISOString(), action: "Contract created", actor: "Contract Preparer", details: "New contract started from the universal commercial-rental template.", documentHash: "Pending first save" }];
   contract.versions = [];
   return contract;

@@ -66,9 +66,6 @@ export interface PropertyDetails {
   suite: string;
   rentedAreas: string[];
   customArea: string;
-  maximumOccupancy: number;
-  parkingSpaces: number;
-  accessibility: string;
   entryDoors: string;
   areasIncluded: string;
   areasExcluded: string;
@@ -81,11 +78,15 @@ export interface PropertyDetails {
 }
 
 export interface RentalTerm {
+  rentalPattern: "one-day" | "recurring-weekly" | "multi-day" | "custom";
   startDate: string;
   endDate: string;
   initialAccessDate: string;
   initialAccessTime: string;
-  minimumMonths: number;
+  threeMonthCommitmentEnabled: boolean;
+  noticePeriodDays: number;
+  specialEventDates: string[];
+  unavailableDates: string[];
   termType: "fixed" | "month-to-month" | "auto-renew" | "non-renewing" | "custom";
   renewalPeriod: string;
   renewalDate: string;
@@ -155,6 +156,7 @@ export interface PaymentTerms {
   utilitiesIncluded: boolean;
   wifiIncluded: boolean;
   cleaningIncluded: boolean;
+  additionalPaymentNotes: string;
 }
 
 export interface SecurityDeposit {
@@ -170,6 +172,15 @@ export interface SecurityDeposit {
   otherLosses: string;
   refundAddress: string;
   refundMethod: string;
+  inspectionDays: number;
+}
+
+export interface CancellationTerms {
+  policyType: "fully-refundable" | "partially-refundable" | "nonrefundable-reservation" | "custom";
+  refundUntil: string;
+  partialRefundPercent: number;
+  reservationPayment: number;
+  customPolicy: string;
 }
 
 export interface WrittenNotices {
@@ -318,6 +329,7 @@ export interface ContractData {
   schedule: ScheduleEntry[];
   payment: PaymentTerms;
   securityDeposit: SecurityDeposit;
+  cancellation: CancellationTerms;
   notices: WrittenNotices;
   propertyRules: string[];
   customRules: string[];
@@ -327,6 +339,10 @@ export interface ContractData {
   governingLaw: GoverningLaw;
   exhibits: Exhibit[];
   signatureMethod: SignatureMethod;
+  signatureOptions: {
+    witnessEnabled: boolean;
+    notaryEnabled: boolean;
+  };
   signatures: Partial<Record<PartySide, SignatureRecord>>;
   audit: AuditRecord[];
   versions: DocumentVersion[];

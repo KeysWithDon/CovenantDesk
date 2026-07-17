@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element -- user-provided signature data URLs are not image assets */
 import type { ContractData, PartySide } from "@/lib/contract-types";
-import { agreementTitle, calculatePayment, formatDate, formatTime, isPrintableCustomClause, money, occurrenceCount, shortHash } from "@/lib/contract-utils";
-import { LEGAL_ADVICE_NOTICE, PAGE_ONE_INCORPORATION_NOTICE, REQUIRED_CLAUSES, SIGNATURE_ACKNOWLEDGMENT } from "@/lib/legal-clauses";
+import { agreementTitle, calculatePayment, formatDate, formatDateList, formatTime, isPrintableCustomClause, money, occurrenceCount, rentalPatternLabel, shortHash } from "@/lib/contract-utils";
+import { agreementClauses, LEGAL_ADVICE_NOTICE, PAGE_ONE_INCORPORATION_NOTICE, SIGNATURE_ACKNOWLEDGMENT, terminationSummary, type RequiredClause } from "@/lib/legal-clauses";
 
 export type PreviewMode = "page-one" | "page-two" | "full" | "print" | "signing";
 
@@ -24,7 +25,7 @@ function SignatureBlock({ contract, side }: { contract: ContractData; side: Part
   );
 }
 
-function PageFooter({ page, total, legal, contract, hash }: { page: number; total: number; legal?: boolean; contract: ContractData; hash: string }) {
+function PageFooter({ page, total, legal, hash }: { page: number; total: number; legal?: boolean; hash: string }) {
   return (
     <footer className="document-footer">
       <span>Page {page} of {total}{legal ? " — Legal Terms and Conditions incorporated into page one" : ""}</span>
@@ -45,6 +46,8 @@ function PageHeader({ contract, legal }: { contract: ContractData; legal?: boole
 function PageOne({ contract, hash, total }: { contract: ContractData; hash: string; total: number }) {
   const totals = calculatePayment(contract);
   const exhibits = contract.exhibits.filter((item) => item.included);
+  const termination = terminationSummary(contract);
+  const pageOneCustomClauses = contract.customClauses.filter((item) => isPrintableCustomClause(item, "one"));
   return (
     <article className="document-page page-one" aria-label="Agreement page one">
       <PageHeader contract={contract} />
@@ -83,7 +86,7 @@ function PageOne({ contract, hash, total }: { contract: ContractData; hash: stri
         </section>
 
         <section className="document-section">
-          <div className="document-section-heading"><p className="document-eyebrow">Recurring rental schedule</p><span>{totals.occurrences} estimated occurrences</span></div>
+          <div className="document-section-heading"><p className="document-eyebrow">{rentalPatternLabel(contract.term.rentalPattern)} schedule</p><span>{totals.occurrences} estimated occurrences</span></div>
           <table className="schedule-table">
             <thead><tr><th>Day</th><th>Recurrence</th><th>Approved time</th><th>Area</th></tr></thead>
             <tbody>
@@ -99,19 +102,23 @@ function PageOne({ contract, hash, total }: { contract: ContractData; hash: stri
           </table>
         </section>
 
+        {(contract.term.specialEventDates.length > 0 || contract.term.unavailableDates.length > 0) && <section className="exhibit-line"><span>Schedule exceptions</span><p>Special events: {formatDateList(contract.term.specialEventDates)} • Unavailable: {formatDateList(contract.term.unavailableDates)}</p></section>}
+
         <section className="business-terms-grid document-section">
           <div><span>Contract term</span><strong>{formatDate(contract.term.startDate)} – {formatDate(contract.term.endDate)}</strong></div>
           <div><span>Rent</span><strong>{money(contract.payment.rentalPrice)} • {contract.payment.frequency}</strong></div>
           <div><span>Payment due</span><strong>{contract.payment.dueDay}</strong></div>
-          <div><span>Security deposit</span><strong>{money(contract.securityDeposit.amount)} • due {formatDate(contract.securityDeposit.dueDate)}</strong></div>
+          <div><span>Security deposit</span><strong>{contract.securityDeposit.amount ? `${money(contract.securityDeposit.amount)} • due ${formatDate(contract.securityDeposit.dueDate)}` : "No deposit"}</strong></div>
           <div><span>Estimated contract value</span><strong>{money(totals.estimatedTotal)}</strong></div>
           <div><span>Signature method</span><strong>{contract.signatureMethod === "wet-ink" ? "In-person handwritten" : contract.signatureMethod === "electronic" ? "Electronic / digital" : "Hybrid"}</strong></div>
         </section>
 
         <aside className="commitment-notice">
           <div className="notice-icon">!</div>
-          <div><h3>Important three-month commitment</h3><p>The Renter is entering an initial minimum three-month commitment. Early voluntary termination before completion of the first three months may result in forfeiture of the security deposit. After completion of the initial three-month period, termination requires at least fifteen days’ advance written notice. See the complete Early Termination and Security Deposit provision on page two.</p></div>
+          <div><h3>{termination.title}</h3><p>{termination.text} See the complete rental-specific provision on page two.</p></div>
         </aside>
+
+        {pageOneCustomClauses.map((item) => <section className="legal-clause custom-legal-clause" key={item.id}><h2>{item.number || "Additional"}. {item.title}</h2><p>{item.text}</p></section>)}
 
         <section className="exhibit-line"><span>Exhibits incorporated</span><p>{exhibits.length ? exhibits.map((item) => `${item.label}: ${item.title}`).join(" • ") : "None identified"}</p></section>
 
@@ -129,13 +136,15 @@ function PageOne({ contract, hash, total }: { contract: ContractData; hash: stri
           <SignatureBlock contract={contract} side="lessor" />
           <SignatureBlock contract={contract} side="renter" />
         </section>
+        {contract.signatureOptions.witnessEnabled && <section className="final-initials"><strong>Witness</strong><span>Signature: ____________________</span><span>Printed name: ____________________</span><span>Date: ____________________</span></section>}
+        {contract.signatureOptions.notaryEnabled && <section className="final-initials"><strong>Notary acknowledgment</strong><span>State/County: ____________________</span><span>Notary signature and seal: ____________________</span><span>Commission expires: ____________________</span></section>}
       </main>
-      <PageFooter page={1} total={total} contract={contract} hash={hash} />
+      <PageFooter page={1} total={total} hash={hash} />
     </article>
   );
 }
 
-function LegalPage({ contract, hash, total, page, clauses, continuation }: { contract: ContractData; hash: string; total: number; page: number; clauses: typeof REQUIRED_CLAUSES; continuation?: boolean }) {
+function LegalPage({ contract, hash, total, page, clauses, continuation }: { contract: ContractData; hash: string; total: number; page: number; clauses: readonly RequiredClause[]; continuation?: boolean }) {
   const customClauses = page === total ? contract.customClauses.filter((item) => isPrintableCustomClause(item, "legal")) : [];
   return (
     <article className="document-page legal-page" aria-label={`Legal terms page ${page}`}>
@@ -168,24 +177,14 @@ function LegalPage({ contract, hash, total, page, clauses, continuation }: { con
           <section className="final-initials"><strong>Final-page acknowledgment</strong><span>Property Owner/Lessor Initials: __________</span><span>Renter Initials: __________</span></section>
         )}
       </main>
-      <PageFooter page={page} total={total} legal contract={contract} hash={hash} />
+      <PageFooter page={page} total={total} legal hash={hash} />
     </article>
   );
 }
 
-// The print template never shrinks legal body text below 8.5pt. Required terms
-// are distributed across additional Letter pages instead of being compressed.
-const legalChunks = [
-  REQUIRED_CLAUSES.slice(0, 5),
-  REQUIRED_CLAUSES.slice(5, 7),
-  REQUIRED_CLAUSES.slice(7, 14),
-  REQUIRED_CLAUSES.slice(14, 23),
-  REQUIRED_CLAUSES.slice(23, 24),
-  REQUIRED_CLAUSES.slice(24),
-];
-
 export function DocumentPreview({ contract, mode, zoom, documentHash }: { contract: ContractData; mode: PreviewMode; zoom: number; documentHash: string }) {
-  const total = 1 + legalChunks.length;
+  const legalChunks = [agreementClauses(contract)];
+  const total = 2;
   const showPageOne = mode !== "page-two";
   const shownChunks = mode === "page-one" ? [] : mode === "page-two" ? [legalChunks[0]] : legalChunks;
   return (
