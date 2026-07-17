@@ -1,6 +1,6 @@
 import type { ContractData, SignatureRecord } from "./contract-types";
-import { agreementTitle, calculatePayment, formatDate, formatTime, isPrintableCustomClause, money, shortHash } from "./contract-utils";
-import { LEGAL_ADVICE_NOTICE, PAGE_ONE_INCORPORATION_NOTICE, REQUIRED_CLAUSES, SIGNATURE_ACKNOWLEDGMENT } from "./legal-clauses";
+import { agreementTitle, calculatePayment, formatDate, formatTime, isPrintableCustomClause, money, rentalPatternLabel, shortHash } from "./contract-utils";
+import { agreementClauses, LEGAL_ADVICE_NOTICE, PAGE_ONE_INCORPORATION_NOTICE, SIGNATURE_ACKNOWLEDGMENT, terminationSummary } from "./legal-clauses";
 
 const safeFileName = (value: string) => value.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-|-$/g, "");
 
@@ -8,7 +8,6 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "letter", orientation: "portrait", compress: true, putOnlyUsedFonts: true });
   const pageWidth = 612;
-  const pageHeight = 792;
   const left = 44;
   const right = 568;
   const contentWidth = right - left;
@@ -16,6 +15,8 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
   const gold = [174, 130, 51] as const;
   const gray = [82, 91, 101] as const;
   const totals = calculatePayment(contract);
+  const termination = terminationSummary(contract);
+  const requiredClauses = agreementClauses(contract);
 
   const text = (value: string, x: number, y: number, options: { width?: number; size?: number; font?: "times" | "helvetica"; style?: "normal" | "bold" | "italic"; color?: readonly [number, number, number]; align?: "left" | "center" | "right" } = {}) => {
     doc.setFont(options.font || "times", options.style || "normal");
@@ -67,7 +68,7 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
   y = text(`${contract.property.name} — ${contract.property.address.street}, ${contract.property.address.city}, ${contract.property.address.state} ${contract.property.address.zip}`, left, y, { width: contentWidth, size: 9.6, style: "bold", color: navy });
   y = text(`Rented area: ${[...contract.property.rentedAreas, contract.property.customArea].filter(Boolean).join(", ")}\nPermitted use: ${contract.property.permittedUse}`, left, y + 2, { width: contentWidth, size: 8.7 }) + 7;
 
-  label("Recurring rental schedule", left, y);
+  label(`${rentalPatternLabel(contract.term.rentalPattern)} schedule`, left, y);
   y += 9;
   const columns = [left, left + 73, left + 180, left + 340, right];
   doc.setFillColor(241, 244, 246);
@@ -90,7 +91,7 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
     ["Term", `${formatDate(contract.term.startDate)} – ${formatDate(contract.term.endDate)}`],
     ["Rent", `${money(contract.payment.rentalPrice)} • ${contract.payment.frequency}`],
     ["Due", contract.payment.dueDay],
-    ["Security deposit", `${money(contract.securityDeposit.amount)} due ${formatDate(contract.securityDeposit.dueDate)}`],
+    ["Security deposit", contract.securityDeposit.amount ? `${money(contract.securityDeposit.amount)} due ${formatDate(contract.securityDeposit.dueDate)}` : "No deposit"],
     ["Estimated contract value", money(totals.estimatedTotal)],
     ["Signature method", contract.signatureMethod === "wet-ink" ? "In-person handwritten" : contract.signatureMethod === "electronic" ? "Electronic / digital" : "Hybrid (handwritten + electronic)"],
   ];
@@ -111,8 +112,8 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
   doc.setFillColor(252, 248, 235);
   doc.setDrawColor(...gold);
   doc.roundedRect(left, y, contentWidth, 54, 3, 3, "FD");
-  text("IMPORTANT THREE-MONTH COMMITMENT", left + 10, y + 15, { size: 8.1, font: "helvetica", style: "bold", color: navy });
-  text("The Renter is entering an initial minimum three-month commitment. Early voluntary termination before completion of the first three months may result in forfeiture of the security deposit. After completion of the initial three-month period, termination requires at least fifteen days’ advance written notice. See the complete Early Termination and Security Deposit provision on page two.", left + 10, y + 29, { width: contentWidth - 20, size: 7.2 });
+  text(termination.title.toUpperCase(), left + 10, y + 15, { size: 8.1, font: "helvetica", style: "bold", color: navy });
+  text(`${termination.text} See the complete rental-specific provision on page two.`, left + 10, y + 29, { width: contentWidth - 20, size: 7.2 });
   y += 64;
 
   const exhibits = contract.exhibits.filter((item) => item.included).map((item) => `${item.label}: ${item.title}`).join(" • ") || "None identified";
@@ -148,6 +149,8 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
   };
   drawSignature(contract.signatures.lessor, left, half, "For the Property Owner / Lessor", contract.lessor.legalName, contract.lessor.responsible.fullName, contract.lessor.responsible.title);
   drawSignature(contract.signatures.renter, left + half + 20, half, "For the Renter / Organization", contract.renter.legalName, contract.renter.responsible.fullName, contract.renter.responsible.title);
+  if (contract.signatureOptions.witnessEnabled) text("Witness signature: ______________________________  Printed name: ____________________  Date: __________", left, y + 99, { width: contentWidth, size: 7.1 });
+  if (contract.signatureOptions.notaryEnabled) text("Optional notary acknowledgment — State/County: ____________________  Notary signature and seal: ____________________  Commission expires: __________", left, y + 114, { width: contentWidth, size: 7.1 });
 
   doc.addPage();
   let legalY = 52;
@@ -166,7 +169,7 @@ export async function downloadPdf(contract: ContractData, documentHash: string) 
     legalPageHeader();
   };
 
-  for (const item of REQUIRED_CLAUSES) {
+  for (const item of requiredClauses) {
     const heading = `${item.number}. ${item.title.toUpperCase()}`;
     doc.setFont("times", "normal");
     doc.setFontSize(8.7);
@@ -228,6 +231,8 @@ export async function downloadDocx(contract: ContractData, documentHash: string)
   } = await import("docx");
   const { saveAs } = await import("file-saver");
   const totals = calculatePayment(contract);
+  const termination = terminationSummary(contract);
+  const requiredClauses = agreementClauses(contract);
   const body = (value: string, bold = false) => new Paragraph({ spacing: { after: 90, line: 240 }, children: [new TextRun({ text: value, bold, size: 20, font: "Georgia" })] });
   const small = (value: string, bold = false) => new Paragraph({ spacing: { after: 60, line: 210 }, children: [new TextRun({ text: value, bold, size: 18, font: "Georgia" })] });
   const heading = (value: string) => new Paragraph({ heading: HeadingLevel.HEADING_2, keepNext: true, spacing: { before: 140, after: 60 }, children: [new TextRun({ text: value, bold: true, color: "0F2A43", size: 22, font: "Georgia" })] });
@@ -247,13 +252,13 @@ export async function downloadDocx(contract: ContractData, documentHash: string)
     heading("2. PROPERTY AND PERMITTED USE"),
     body(`${contract.property.name}, ${contract.property.address.street}, ${contract.property.address.city}, ${contract.property.address.state} ${contract.property.address.zip}. Rented areas: ${[...contract.property.rentedAreas, contract.property.customArea].filter(Boolean).join(", ")}.`),
     body(`Permitted use: ${contract.property.permittedUse}.`),
-    heading("3. TERM AND RECURRING SCHEDULE"),
-    body(`${formatDate(contract.term.startDate)} through ${formatDate(contract.term.endDate)}; required minimum initial commitment: three months.`),
+    heading(`3. TERM AND ${rentalPatternLabel(contract.term.rentalPattern).toUpperCase()} SCHEDULE`),
+    body(`${formatDate(contract.term.startDate)} through ${formatDate(contract.term.endDate)}.`),
     new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: scheduleRows }),
     heading("4. PAYMENT SUMMARY"),
-    body(`Rent: ${money(contract.payment.rentalPrice)} ${contract.payment.frequency.toLowerCase()}, due ${contract.payment.dueDay}. Security deposit: ${money(contract.securityDeposit.amount)}, due ${formatDate(contract.securityDeposit.dueDate)}. Estimated total charges: ${money(totals.estimatedTotal)}.`),
-    heading("IMPORTANT THREE-MONTH COMMITMENT"),
-    body("The Renter is entering an initial minimum three-month commitment. Early voluntary termination before completion of the first three months may result in forfeiture of the security deposit. After completion of the initial three-month period, termination requires at least fifteen days’ advance written notice. See the complete Early Termination and Security Deposit provision in the Legal Terms and Conditions."),
+    body(`Rent: ${money(contract.payment.rentalPrice)} ${contract.payment.frequency.toLowerCase()}, due ${contract.payment.dueDay}. Security deposit: ${contract.securityDeposit.amount ? `${money(contract.securityDeposit.amount)}, due ${formatDate(contract.securityDeposit.dueDate)}` : "none"}. Estimated total charges: ${money(totals.estimatedTotal)}.`),
+    heading(termination.title.toUpperCase()),
+    body(termination.text),
     heading("NOTICE OF TERMS ON PAGE TWO"),
     body(PAGE_ONE_INCORPORATION_NOTICE),
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 120, after: 120 }, children: [new TextRun({ text: "DO NOT SIGN THIS AGREEMENT UNTIL YOU HAVE REVIEWED PAGE TWO.", bold: true, size: 18, color: "0F2A43", font: "Arial" })] }),
@@ -262,10 +267,12 @@ export async function downloadDocx(contract: ContractData, documentHash: string)
     body(`${contract.lessor.legalName}\nBy, Responsible Party: ${contract.lessor.responsible.fullName}\nTitle: ${contract.lessor.responsible.title}\nSignature: ____________________________________    Date: __________________`),
     heading("FOR THE RENTER, CHURCH, MINISTRY, BUSINESS, OR ORGANIZATION"),
     body(`${contract.renter.legalName}\nBy, Responsible Party: ${contract.renter.responsible.fullName}\nTitle: ${contract.renter.responsible.title}\nSignature: ____________________________________    Date: __________________`),
+    ...(contract.signatureOptions.witnessEnabled ? [heading("OPTIONAL WITNESS"), body("Witness signature: ____________________________________    Printed name: __________________    Date: __________________")] : []),
+    ...(contract.signatureOptions.notaryEnabled ? [heading("OPTIONAL NOTARY ACKNOWLEDGMENT"), body("State/County: __________________    Notary signature and seal: ____________________________________    Commission expires: __________________")] : []),
     new Paragraph({ children: [new PageBreak()] }),
     new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { after: 80 }, children: [new TextRun({ text: "LEGAL TERMS AND CONDITIONS — INCORPORATED INTO PAGE ONE", bold: true, size: 24, color: "0F2A43", font: "Georgia" })] }),
     small("These Legal Terms and Conditions are incorporated into and form a material part of the Commercial Property Rental Agreement appearing on page one.", true),
-    ...REQUIRED_CLAUSES.flatMap((item) => [heading(`${item.number}. ${item.title.toUpperCase()}`), small(item.text)]),
+    ...requiredClauses.flatMap((item) => [heading(`${item.number}. ${item.title.toUpperCase()}`), small(item.text)]),
     ...contract.customClauses.filter((item) => isPrintableCustomClause(item, "legal")).flatMap((item) => [heading(`${item.number || "Additional"}. ${item.title.toUpperCase()}`), small(item.text)]),
     ...(contract.metadata.includeDisclaimerInContract ? [heading("TEMPLATE NOTICE"), small(LEGAL_ADVICE_NOTICE)] : []),
     ...(contract.admin.finalPageAcknowledgment ? [heading("FINAL-PAGE ACKNOWLEDGMENT"), body("Property Owner/Lessor Initials: ____________________    Renter Initials: ____________________")] : []),

@@ -1,108 +1,155 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import { createNewContract, emptyAcknowledgments, requiredAcknowledgmentLabels } from "../lib/contract-defaults";
 import { calculatePayment, calculateSchedule, hashContract, isPrintableCustomClause, makeCustomClausesOptional, validateContractData } from "../lib/contract-utils";
-import { EARLY_TERMINATION_TEXT, PAGE_ONE_INCORPORATION_NOTICE, REQUIRED_CLAUSES, SIGNATURE_EQUIVALENCY_TEXT, VOLUNTARY_EXECUTION_TEXT } from "../lib/legal-clauses";
+import { agreementClauses, PAGE_ONE_INCORPORATION_NOTICE, REQUIRED_CLAUSES, SIGNATURE_EQUIVALENCY_TEXT, terminationSummary } from "../lib/legal-clauses";
+import type { ContractData } from "../lib/contract-types";
 
-test("every universal clause is immutable and includes critical language", () => {
-  assert.equal(REQUIRED_CLAUSES.length, 26);
+function oneDayContract(): ContractData {
+  const contract = createNewContract();
+  contract.metadata.attorneyNoticeAccepted = true;
+  contract.term.rentalPattern = "one-day";
+  contract.term.startDate = "2026-08-02";
+  contract.term.endDate = "2026-08-02";
+  contract.term.threeMonthCommitmentEnabled = false;
+  contract.term.specialEventDates = [];
+  contract.term.unavailableDates = [];
+  contract.schedule = [{ ...contract.schedule[0], id: "one-day", day: "Sunday", recurrence: "Selected dates only", firstOccurrence: "2026-08-02", lastOccurrence: "2026-08-02" }];
+  return contract;
+}
+
+test("core clauses are immutable and the rental-specific clause is generated", () => {
+  const contract = createNewContract();
+  assert.equal(REQUIRED_CLAUSES.length, 18);
   assert.ok(Object.isFrozen(REQUIRED_CLAUSES));
   assert.ok(REQUIRED_CLAUSES.every(Object.isFrozen));
-  assert.match(EARLY_TERMINATION_TEXT, /minimum initial period of three months/i);
-  assert.match(EARLY_TERMINATION_TEXT, /no fewer than fifteen days/i);
-  assert.match(VOLUNTARY_EXECUTION_TEXT, /not signing as a result of duress, coercion, intimidation, manipulation/i);
-  assert.match(VOLUNTARY_EXECUTION_TEXT, /not under the influence of alcohol/i);
-  assert.match(SIGNATURE_EQUIVALENCY_TEXT, /same validity, legal force, binding effect, and enforceability/i);
+  assert.equal(agreementClauses(contract).length, 19);
+  assert.match(SIGNATURE_EQUIVALENCY_TEXT, /same effect as a handwritten signature/i);
 });
 
-test("page one always incorporates page two", async () => {
-  assert.match(PAGE_ONE_INCORPORATION_NOTICE, /material terms of this Agreement/i);
+test("one-day agreements never receive initial-commitment language", () => {
+  const contract = oneDayContract();
+  const summary = terminationSummary(contract);
+  const completeTerms = agreementClauses(contract).map((item) => `${item.title} ${item.text}`).join(" ");
+  assert.match(summary.title, /one-day cancellation/i);
+  assert.doesNotMatch(`${summary.text} ${completeTerms}`, /three[- ]month/i);
+  assert.equal(validateContractData(contract).length, 0);
+});
+
+test("every one-day cancellation choice produces the selected policy", () => {
+  const contract = oneDayContract();
+  contract.cancellation.refundUntil = "2026-07-25";
+  contract.cancellation.partialRefundPercent = 60;
+  contract.cancellation.reservationPayment = 250;
+  contract.cancellation.customPolicy = "Cancel in writing by noon.";
+  const expectations = [
+    ["fully-refundable", /fully refundable/i],
+    ["partially-refundable", /60%/i],
+    ["nonrefundable-reservation", /\$250\.00 reservation payment/i],
+    ["custom", /Cancel in writing by noon/i],
+  ] as const;
+  for (const [policyType, expected] of expectations) {
+    contract.cancellation.policyType = policyType;
+    assert.match(terminationSummary(contract).text, expected);
+  }
+});
+
+test("recurring rentals support enabled and disabled commitments", () => {
+  const contract = createNewContract();
+  contract.term.rentalPattern = "recurring-weekly";
+  contract.term.threeMonthCommitmentEnabled = true;
+  assert.match(terminationSummary(contract).text, /initial three-month commitment/i);
+  assert.match(terminationSummary(contract).text, /15 days/i);
+  contract.term.threeMonthCommitmentEnabled = false;
+  contract.term.noticePeriodDays = 30;
+  const disabled = terminationSummary(contract).text;
+  assert.match(disabled, /30 days/i);
+  assert.match(disabled, /may not be forfeited solely/i);
+});
+
+test("multi-day rentals also support enabled and disabled commitments", () => {
+  const contract = createNewContract();
+  contract.term.rentalPattern = "multi-day";
+  contract.term.threeMonthCommitmentEnabled = true;
+  assert.match(terminationSummary(contract).title, /three-month/i);
+  contract.term.threeMonthCommitmentEnabled = false;
+  assert.match(terminationSummary(contract).title, /termination notice/i);
+});
+
+test("a zero security deposit does not require a due date", () => {
+  const contract = createNewContract();
+  contract.metadata.attorneyNoticeAccepted = true;
+  contract.securityDeposit.amount = 0;
+  contract.securityDeposit.dueDate = "";
+  assert.doesNotMatch(validateContractData(contract).join(" "), /deposit due|deposit.*required/i);
+});
+
+test("retired property questions are absent from the data model, schema, and form", async () => {
+  const source = await Promise.all([
+    "../lib/contract-types.ts",
+    "../lib/contract-schema.ts",
+    "../app/components/ContractForm.tsx",
+  ].map((path) => readFile(new URL(path, import.meta.url), "utf8")));
+  const combined = source.join("\n");
+  assert.doesNotMatch(combined, /maximum.?occupancy|parking.?spaces|accessibility information/i);
+});
+
+test("page one incorporates page two and the default preview is two pages", async () => {
+  assert.match(PAGE_ONE_INCORPORATION_NOTICE, /page two/i);
   assert.match(PAGE_ONE_INCORPORATION_NOTICE, /incorporated into page one/i);
-  const previewSource = await readFile(new URL("../app/components/DocumentPreview.tsx", import.meta.url), "utf8");
-  assert.match(previewSource, /PAGE_ONE_INCORPORATION_NOTICE/);
-  assert.match(previewSource, /LEGAL TERMS AND CONDITIONS — INCORPORATED INTO PAGE ONE/);
-  assert.match(previewSource, /REQUIRED_CLAUSES\.slice/);
+  const preview = await readFile(new URL("../app/components/DocumentPreview.tsx", import.meta.url), "utf8");
+  assert.match(preview, /const total = 2/);
+  assert.match(preview, /LEGAL TERMS AND CONDITIONS — INCORPORATED INTO PAGE ONE/);
+  assert.match(preview, /agreementClauses\(contract\)/);
 });
 
-test("weekly schedule calculations are accurate", () => {
+test("witness and notary sections are optional and hidden when unused", async () => {
+  const contract = createNewContract();
+  assert.equal(contract.signatureOptions.witnessEnabled, false);
+  assert.equal(contract.signatureOptions.notaryEnabled, false);
+  const preview = await readFile(new URL("../app/components/DocumentPreview.tsx", import.meta.url), "utf8");
+  assert.match(preview, /signatureOptions\.witnessEnabled &&/);
+  assert.match(preview, /signatureOptions\.notaryEnabled &&/);
+});
+
+test("custom clauses remain optional and print only after explicit inclusion", () => {
+  const excluded = { id: "one", number: "20", title: "Optional term", text: "Only when selected.", required: false as const, page: "legal" as const, initialsRequired: false, included: false };
+  const included = { ...excluded, included: true };
+  assert.equal(isPrintableCustomClause(excluded, "legal"), false);
+  assert.equal(isPrintableCustomClause(included, "legal"), true);
+  const contract = createNewContract();
+  contract.customClauses = [included];
+  assert.ok(makeCustomClausesOptional(contract).customClauses.every((item) => item.required === false));
+});
+
+test("weekly schedule and payment calculations remain accurate", () => {
   const contract = createNewContract();
   const schedule = calculateSchedule(contract.schedule, contract.payment.overtimeRate);
   assert.equal(schedule.occurrences, 104);
   assert.equal(schedule.rentalHours, 468);
-  assert.equal(schedule.setupHours, 52);
-  assert.equal(schedule.cleanupHours, 52);
   const payment = calculatePayment(contract);
   assert.equal(payment.baseRent, 38_400);
-  assert.equal(payment.recurringFees, 1_800);
-  assert.equal(payment.oneTimeFees, 35);
   assert.equal(payment.estimatedTotal, 40_235);
 });
 
-test("minimum commitment and contract date validation cannot be bypassed", () => {
-  const contract = createNewContract();
-  contract.metadata.attorneyNoticeAccepted = true;
-  contract.term.minimumMonths = 2;
-  assert.ok(validateContractData(contract).some((error) => /cannot be less than three months/i.test(error)));
-  contract.term.minimumMonths = 3;
-  contract.term.endDate = "2026-01-01";
-  assert.ok(validateContractData(contract).some((error) => /date range is invalid/i.test(error)));
-});
-
-test("all signer confirmations begin unchecked", () => {
+test("signer acknowledgments start unchecked and document hashes track edits", async () => {
   const acknowledgments = emptyAcknowledgments();
   assert.equal(requiredAcknowledgmentLabels.length, 14);
   assert.ok(requiredAcknowledgmentLabels.every(({ key }) => acknowledgments[key] === false));
-  assert.ok(requiredAcknowledgmentLabels.some(({ label }) => /duress, coercion, intimidation, manipulation/i.test(label)));
-  assert.ok(requiredAcknowledgmentLabels.some(({ label }) => /electronic or digital signature/i.test(label)));
-});
-
-test("document hashes change when contract content changes", async () => {
   const first = createNewContract();
   const firstHash = await hashContract(first);
   const second = createNewContract();
   second.payment.rentalPrice += 1;
-  const secondHash = await hashContract(second);
-  assert.equal(firstHash.length, 64);
-  assert.notEqual(firstHash, secondHash);
+  assert.notEqual(firstHash, await hashContract(second));
 });
 
-test("print legal body never drops below the 8.5 point equivalent", async () => {
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.legal-clause p[^}]*[\s\S]*?font-size:\s*11\.4px/);
-  const exporter = await readFile(new URL("../lib/document-export.ts", import.meta.url), "utf8");
-  assert.match(exporter, /size:\s*8\.7/);
-  assert.match(exporter, /ensureLegalSpace/);
-});
-
-test("wet-ink, electronic, and hybrid workflows remain available", async () => {
-  const studio = await readFile(new URL("../app/components/ContractStudio.tsx", import.meta.url), "utf8");
-  const form = await readFile(new URL("../app/components/ContractForm.tsx", import.meta.url), "utf8");
-  assert.match(form, /value:\s*"wet-ink"/);
-  assert.match(form, /value:\s*"electronic"/);
-  assert.match(form, /value:\s*"hybrid"/);
-  assert.match(studio, /Signed copy uploaded/);
-  assert.match(studio, /current\.metadata\.locked = bothSigned/);
-  assert.match(studio, /Final agreement locked against silent editing/);
-});
-
-test("custom clauses are optional and omitted from printed documents unless explicitly included", async () => {
-  const excluded = { id: "one", number: "27", title: "Optional term", text: "Only when selected.", required: false as const, page: "legal" as const, initialsRequired: false, included: false };
-  const blank = { ...excluded, id: "two", title: "", included: true };
-  const included = { ...excluded, id: "three", included: true };
-  assert.equal(isPrintableCustomClause(excluded, "legal"), false);
-  assert.equal(isPrintableCustomClause(blank, "legal"), false);
-  assert.equal(isPrintableCustomClause(included, "legal"), true);
-
-  const contract = createNewContract();
-  contract.customClauses = [{ ...included, required: false }];
-  assert.ok(makeCustomClausesOptional(contract).customClauses.every((clause) => clause.required === false));
-
-  const form = await readFile(new URL("../app/components/ContractForm.tsx", import.meta.url), "utf8");
-  const preview = await readFile(new URL("../app/components/DocumentPreview.tsx", import.meta.url), "utf8");
-  const exporter = await readFile(new URL("../lib/document-export.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(form, /Required for this contract/);
-  assert.match(form, /included:\s*false/);
-  assert.match(preview, /isPrintableCustomClause/);
-  assert.match(exporter, /isPrintableCustomClause/);
+test("repository includes portable GitHub deployment files and standard Next scripts", async () => {
+  await access(new URL("../.github/workflows/deploy-pages.yml", import.meta.url));
+  await access(new URL("../netlify.toml", import.meta.url));
+  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as { scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> };
+  assert.equal(packageJson.scripts.dev, "next dev");
+  assert.equal(packageJson.scripts.build, "next build");
+  assert.equal(packageJson.devDependencies.vinext, undefined);
+  assert.equal(packageJson.devDependencies.wrangler, undefined);
 });

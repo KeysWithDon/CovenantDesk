@@ -100,6 +100,19 @@ export function agreementTitle(contract: ContractData) {
   return contract.metadata.agreementType.toUpperCase();
 }
 
+export function rentalPatternLabel(pattern: ContractData["term"]["rentalPattern"]) {
+  return ({
+    "one-day": "One-day rental",
+    "recurring-weekly": "Recurring weekly rental",
+    "multi-day": "Multi-day rental",
+    custom: "Custom schedule",
+  } as const)[pattern];
+}
+
+export function formatDateList(values: string[]) {
+  return values.length ? values.map(formatDate).join(", ") : "None";
+}
+
 export function requiredClauseFingerprint() {
   return REQUIRED_CLAUSES.map((item) => `${item.number}:${item.key}:${item.text}`).join("|");
 }
@@ -134,12 +147,13 @@ export function contractCompletion(contract: ContractData) {
     contract.renter.responsible.hasAuthority,
     contract.term.startDate,
     contract.term.endDate,
-    contract.term.minimumMonths >= 3,
+    contract.term.rentalPattern,
+    contract.term.rentalPattern === "one-day" ? !contract.term.threeMonthCommitmentEnabled : contract.term.noticePeriodDays >= 0,
     contract.schedule.length > 0,
     contract.schedule.every((entry) => entry.rentalStart && entry.rentalEnd),
     contract.payment.rentalPrice >= 0,
     contract.payment.frequency,
-    contract.securityDeposit.amount >= 0,
+    contract.securityDeposit.amount >= 0 && (contract.securityDeposit.amount === 0 || Boolean(contract.securityDeposit.dueDate)),
     contract.notices.lessorAddress && contract.notices.renterAddress,
     contract.signatureMethod,
     contract.metadata.attorneyNoticeAccepted,
@@ -154,16 +168,20 @@ export function validateContractData(contract: ContractData) {
   if (!contract.lessor.legalName || !contract.lessor.responsible.fullName) errors.push("Property Owner/Lessor names are required.");
   if (!contract.renter.legalName || !contract.renter.responsible.fullName) errors.push("Renter names are required.");
   if (!contract.lessor.responsible.hasAuthority || !contract.renter.responsible.hasAuthority) errors.push("Both responsible parties must confirm signing authority.");
-  if (contract.term.minimumMonths < 3) errors.push("The minimum initial commitment cannot be less than three months.");
   if (!contract.schedule.length) errors.push("At least one rental day is required.");
   const start = new Date(`${contract.term.startDate}T00:00:00`).getTime();
   const end = new Date(`${contract.term.endDate}T00:00:00`).getTime();
   if (!start || !end || end < start) errors.push("The contract date range is invalid.");
-  if (start && end) {
+  if (contract.term.rentalPattern === "one-day" && contract.term.threeMonthCommitmentEnabled) errors.push("A one-day rental cannot use the initial three-month commitment.");
+  if (contract.term.rentalPattern === "one-day" && start !== end) errors.push("A one-day rental must start and end on the same date.");
+  if (start && end && contract.term.rentalPattern !== "one-day" && contract.term.threeMonthCommitmentEnabled) {
     const minimumEnd = new Date(`${contract.term.startDate}T00:00:00`);
     minimumEnd.setMonth(minimumEnd.getMonth() + 3);
-    if (end < minimumEnd.getTime()) errors.push("The contract term must cover the required initial three-month commitment.");
+    if (end < minimumEnd.getTime()) errors.push("The contract term must cover the selected initial three-month commitment.");
   }
+  if (contract.term.noticePeriodDays < 0) errors.push("The termination notice period cannot be negative.");
+  const unavailable = new Set(contract.term.unavailableDates);
+  if (contract.term.specialEventDates.some((date) => unavailable.has(date))) errors.push("A date cannot be both a special event and unavailable.");
   for (const entry of contract.schedule) {
     if (!entry.rentalStart || !entry.rentalEnd) errors.push(`${entry.day} needs rental start and ending times.`);
     if (timeMinutes(entry.rentalEnd) <= timeMinutes(entry.rentalStart)) errors.push(`${entry.day} ends before it starts.`);
@@ -198,7 +216,6 @@ export function validateContractData(contract: ContractData) {
 export function customClauseConflicts(text: string) {
   const normalized = text.toLowerCase();
   const patterns = [
-    { test: /(?:minimum|commitment).{0,24}(?:one|two|1|2)\s*months?/, message: "This may conflict with the required three-month minimum commitment." },
     { test: /page\s*(?:two|2).{0,20}(?:not|does not).{0,20}(?:apply|incorporat)/, message: "This may conflict with mandatory incorporation of the legal terms." },
     { test: /electronic signature.{0,30}(?:invalid|lesser|subordinate)/, message: "This may conflict with the required signature-equivalency provision." },
     { test: /security deposit.{0,30}(?:final rent|last payment)/, message: "This may conflict with the required security-deposit treatment." },
