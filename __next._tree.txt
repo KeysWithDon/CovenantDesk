@@ -1,2 +1,2 @@
-:HL["/CovenantDesk/_next/static/chunks/0acr903ltudt~.css","style"]
-0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}},"staleTime":300,"buildId":"jOe-wH81shU1lGnEs_lnt"}
+:HL["/CovenantDesk/_next/static/chunks/0seui5os-tj5y.css","style"]
+0:{"tree":{"name":"","param":null,"prefetchHints":16,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":0,"slots":null}}},"staleTime":300,"buildId":"lPNKkqTtSElFsbD3pP2W3"}
