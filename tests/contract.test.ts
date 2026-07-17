@@ -145,11 +145,13 @@ test("signer acknowledgments start unchecked and document hashes track edits", a
 });
 
 test("repository includes portable GitHub deployment files and standard Next scripts", async () => {
-  await access(new URL("../.github/workflows/deploy-pages.yml", import.meta.url));
   await access(new URL("../netlify.toml", import.meta.url));
+  const nextConfig = await readFile(new URL("../next.config.ts", import.meta.url), "utf8");
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as { scripts: Record<string, string>; dependencies: Record<string, string>; devDependencies: Record<string, string> };
   assert.equal(packageJson.scripts.dev, "next dev");
   assert.equal(packageJson.scripts.build, "next build");
   assert.equal(packageJson.devDependencies.vinext, undefined);
   assert.equal(packageJson.devDependencies.wrangler, undefined);
+  assert.match(nextConfig, /output:\s*"export"/);
+  assert.match(nextConfig, /GITHUB_REPOSITORY/);
 });

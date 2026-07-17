@@ -51,12 +51,6 @@ Set `NEXT_PUBLIC_SITE_URL` to the public site origin. No API key or hosted datab
 
 ## Deploy from GitHub
 
-### GitHub Pages
-
-The included `.github/workflows/deploy-pages.yml` builds and publishes the static `out/` directory. In the repository settings, choose **Pages → Source → GitHub Actions**, then push to `main` or run the workflow manually.
-
-The Next.js configuration automatically adds the repository subpath to assets during the GitHub Actions build.
-
 ### Vercel
 
 Import the GitHub repository into Vercel. The framework preset is Next.js; no custom build command is needed. Add `NEXT_PUBLIC_SITE_URL` with the final Vercel domain if desired.
@@ -64,6 +58,10 @@ Import the GitHub repository into Vercel. The framework preset is Next.js; no cu
 ### Netlify
 
 Import the GitHub repository into Netlify. The included `netlify.toml` uses `npm run build` and publishes `out/`.
+
+### GitHub Pages
+
+The project also supports GitHub Pages. Build with `GITHUB_ACTIONS=true`, `GITHUB_REPOSITORY=KeysWithDon/CovenantDesk`, and `NEXT_PUBLIC_SITE_URL` set to the Pages URL, then publish the generated `out/` directory from a Pages branch or your preferred Pages workflow. The Next.js configuration automatically adds the repository subpath to assets for that build.
 
 ## Data and privacy
 
@@ -83,5 +81,5 @@ lib/contract-utils.ts        calculations, validation, and hashes
 lib/legal-clauses.ts         core and rental-specific agreement language
 lib/document-export.ts       PDF, DOCX, and JSON exports
 tests/contract.test.ts       agreement behavior and repository checks
-.github/workflows/           GitHub Pages deployment
+netlify.toml                 Netlify build and publish settings
 ```
